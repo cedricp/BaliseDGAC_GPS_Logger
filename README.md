@@ -1,3 +1,8 @@
+
+## Info sur ce fork
+
+Modifications pour l'ESP01 avec mode scan balise (limite mais fonctionnel)
+
 # **BaliseDGAC\_GPS\_Logger V4.2 Emetteur/Récepteur/Tracker GSM/Télémétrie FlySky iBus**
 
 Version d'une balise de signalisation style DGAC pour  [signalisation de drones et aéromodèles](https://www.ecologie.gouv.fr/sites/default/files/notice_signalement_electronique.pdf) avec possibilité d'enregistrement des traces GPS et incluant optionnellement un module GSM permettant de recevoir un SMS de localisation. Télémétrie FlySky IBus possible pour un retour des informations GPS.

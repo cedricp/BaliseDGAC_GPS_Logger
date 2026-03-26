@@ -854,6 +854,10 @@ void fs_initServerOn() {
   server.on("/recepteur", handleRecepteur);
   server.on("/recepteurRefresh", handleRecepteurRefresh);
   server.on("/recepteurDetail", handleRecepteurDetail);
+
+  server.on("/scan", handleScan);
+  server.on("/recepteurRefresh", handleNothing);
+  server.on("/recepteurDetail", handleNothing);
 #endif
 #ifdef fs_OTA
   fs_initServerOnOTA(server);  // server.on spécicifiques à OTA

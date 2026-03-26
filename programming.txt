@@ -1,0 +1,1 @@
+esptool.exe --port COM7 --baud 115200 write_flash -fm dout 0x00000 .\build\BaliseDGAC_GPS_Logger.ino.bin

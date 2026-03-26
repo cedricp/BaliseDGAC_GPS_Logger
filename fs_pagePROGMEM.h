@@ -197,6 +197,9 @@ const char topMenu[] PROGMEM = R"=====(
 R"=====(
 <td class ='nobord'><button class='b1' onclick="window.history.pushState({'nom':'toto'}, 'il faut reset', '/reset');location.assign('/recepteur')">Récepteur</button></td>
 )====="
+R"=====(
+<td class ='nobord'><button class='b1' onclick="window.history.pushState({'nom':'toto'}, 'il faut reset', '/reset');location.assign('/scan')">Scan</button></td>
+)====="
 #endif
 R"=====(
 </tr>

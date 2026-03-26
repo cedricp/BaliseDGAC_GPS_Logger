@@ -540,7 +540,7 @@ void setup() {
 #else
   serialGPS.begin(9600, SWSERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
   if (!serialGPS) {  // If the object did not initialize, then its configuration is invalid
-    Serial.println(F("Invalid SoftwareSerial pin configuration, check config"));
+    Serial.println(F("Invalid SoftwareSerial pin configuration, check config, stopping..."));
     while (1) {  // Don't continue with invalid configuration
       delay(1000);
     }

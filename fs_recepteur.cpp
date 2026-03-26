@@ -20,20 +20,19 @@
 
 #include "fs_options.h"
 #ifdef fs_RECEPTEUR   // compilation conditionnelle de tout le code récepteur
-#include <byteswap.h>
-#include "esp_wifi.h"
-#include <WiFi.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WiFi.h>
 #include "fs_WebServer.h"
 extern fs_WebServer server;
 extern HardwareSerial serialGPS;
 #include <LittleFS.h>
 
+extern "C" {
+#include "user_interface.h"
+}
+
 #include "fs_recepteur.h"
 #include "fs_pagePROGMEM.h"
-
-//#define LED 2
-//#define ON HIGH
-//#define OFF LOW
 
 static const char *TAG = "sniffer";
 
@@ -51,6 +50,46 @@ static const char *TAG = "sniffer";
 #define B_CUR_VIT 0x0A
 #define B_CUR_DIR 0x0B
 #define B_CODE_INFO 0x0C
+
+typedef struct {
+    uint8_t element_id;      // Should be 0xDD for Vendor Specific
+    uint8_t length;          // Total length of the IE (excluding these first 2 bytes)
+    uint8_t vendor_oui[3];   // Organizationally Unique Identifier (e.g., 00:50:F2 for Microsoft)
+    uint8_t vendor_type;     // Vendor-specific type
+    uint8_t payload[0];      // The actual data (Flexible Array Member)
+} vendor_ie_data_t;
+
+typedef struct {
+    signed rssi:8;
+    unsigned rate:4;
+    unsigned is_group:1;
+    unsigned:1;
+    unsigned sig_mode:2;
+    unsigned legacy_length:12;
+    unsigned damatch0:1;
+    unsigned damatch1:1;
+    unsigned bssidmatch0:1;
+    unsigned bssidmatch1:1;
+    unsigned MCS:7;
+    unsigned CWB:1;
+    unsigned HT_length:16;
+    unsigned Smoothing:1;
+    unsigned Not_Sounding:1;
+    unsigned:1;
+    unsigned Aggregation:1;
+    unsigned STBC:2;
+    unsigned FEC_CODING:1;
+    unsigned SGI:1;
+    unsigned rxend_state:8;
+    unsigned ampdu_cnt:8;
+    unsigned channel:4;
+    unsigned:12;
+} RxControl_t;
+
+typedef struct {
+    RxControl_t rx_ctrl;
+    uint8_t payload[];
+} wifi_sniffer_t; 
 
 extern boolean modeRecepteur;  // false: mode balise avec emmision de trames; true: mode reception de trames beacon
 
@@ -125,6 +164,32 @@ bool modeDetail ;  // true si on regarde le detil d'une balise : dans ce cas tou
 //  pas bon si plusieurs clients ....
 int numBaliseDetail;
 
+
+static inline int32_t read_be32(const uint8_t* p) {
+    uint32_t res;
+    res =  ((uint32_t)p[0]) << 24;
+    res |= ((uint32_t)p[1]) << 16;
+    res |= ((uint32_t)p[2]) << 8;
+    res |= ((uint32_t)p[3]);
+    return res;
+}
+
+static inline int32_t read_le32(const uint8_t* p) {
+    uint32_t res;
+    res =  ((uint32_t)p[3]) << 24;
+    res |= ((uint32_t)p[2]) << 16;
+    res |= ((uint32_t)p[1]) << 8;
+    res |= ((uint32_t)p[0]);
+    return res;
+}
+
+static inline int16_t read_be16(const uint8_t* p) {
+    uint16_t res;
+    res =  ((uint16_t)p[0]) << 8;
+    res |= ((uint16_t)p[1]);
+    return res;
+}
+
 void handleRecepteurDetail()
 {
   modeDetail = true;
@@ -155,7 +220,7 @@ void handleRecepteurRefresh()
   modeDetail = false;
   server.chunkedResponseModeStart(200, "text/html");
   server.sendContent_P(fs_style);
-  String page = "<div class ='card'><button class='b1' onclick= \"document.location='/reset'\">Retour en mode émetteur (reset)</button></div>";
+  String page = "<div class ='card'><button class='b1' onclick= \"document.location='/cockpit'\">Retour au cockpit</button></div>";
   page +=  "<div class='card'><form action='/recepteurDetail' method='post'>\n";
   page += "<table><tr><th>Balises dans le voisinage</th><th>RSSI</th><th>Age</th></tr>";
   for (int i = 0; i < sizeof (lesBalises) / sizeof( balise_t); i++) {
@@ -187,8 +252,7 @@ static void decoupeID_balise()
 /** structure for Beacon Management Frame 802.11 + mandatory fields*/
 typedef struct
 {
-  uint8_t subtype;              /**<  Frame subtype*/
-  uint8_t type;               /**<  Frame typa*/
+  uint16_t frame_control;              /**<  Frame subtype*/
   uint16_t duration;              /**<  */
   uint8_t receiver_address[6];        /**<  Receiver mac-address*/
   uint8_t transmitter_address[6];       /**<  Transmitter mac-address*/
@@ -240,35 +304,38 @@ void addBalise() {
   // Serial.printf("Rajout balise % s en % i\n", lesBalises[iAgeM].identifiant, iAgeM );
 }
 
-
-static void wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type)
+static void ICACHE_RAM_ATTR wifi_sniffer_cb(uint8 *recv_buf, uint16 len)
 {
-
-  static int32_t *oui_ver;
   static int32_t index, ptr, i;
-  static wifi_promiscuous_pkt_t *sniffer;
+  static wifi_sniffer_t *sniffer;
   static TLV_t *tlv, *b_tlv;
   static vendor_ie_data_t *gse_vendor;
   static frame_header_t *packet;
   static float f_value;
   static char identifiant[31];
+  unsigned int sig_len;
 
-  sniffer = (wifi_promiscuous_pkt_t *)recv_buf;
+  sniffer = (wifi_sniffer_t *)recv_buf;
+  packet = (frame_header_t*) sniffer->payload;
 
-  if ((*(uint16_t *)sniffer->payload) == 0x0080) //beacon frame
+  if (packet->frame_control == 0x0080) //beacon frame
   {
-    packet = (frame_header_t*) sniffer->payload;
-    index = sizeof(*packet) + packet->ssid_length;
-    while (index < (sniffer->rx_ctrl.sig_len - 4))
+    int sig_len = sniffer->rx_ctrl.sig_mode == 0 ? sniffer->rx_ctrl.legacy_length : sniffer->rx_ctrl.HT_length;
+    index = sizeof(frame_header_t) + packet->ssid_length;
+
+    while (index < (sig_len - 4))
     {
-      tlv = (TLV_t*)((sniffer->payload) + index);
-      //WIFI_VENDOR_IE_ELEMENT_ID  ???
+      tlv = (TLV_t*)(((uint8_t*)sniffer->payload) + index);
+
       if (tlv->type == 0xDD)
       {
-        oui_ver = (int32_t*) tlv->payload;
-        if ( *oui_ver == OUI_VER)
+        int32_t oui_ver = read_le32(tlv->payload);
+        gse_vendor = (vendor_ie_data_t*)(tlv);
+        uint8_t vendor_type = gse_vendor->vendor_type;
+        uint8_t vendor_length = gse_vendor->length;
+        
+        if (oui_ver = OUI_VER)
         {
-          gse_vendor = (vendor_ie_data_t*)(tlv);
           ptr = 0;
           while (ptr < (gse_vendor->length - 4))
           {
@@ -289,28 +356,28 @@ static void wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type)
                 //printf("\t\t\"ident ansi\": \"%s\",\r\n", identifiant);
                 break;
               case B_CUR_LAT :
-                curBalise.lat = (float)((signed)(__bswap_32(*(int32_t*)(b_tlv->payload)))) / 100000.0;
+                curBalise.lat = (float)((signed)(read_be32(b_tlv->payload))) / 100000.0;
                 break;
               case B_CUR_LON :
-                curBalise.lon = (float)((signed)(__bswap_32(*(int32_t*)(b_tlv->payload)))) / 100000.0;
+                curBalise.lon = (float)((signed)(read_be32(b_tlv->payload))) / 100000.0;
                 break;
               case B_CUR_ALT :
-                curBalise.alt = __bswap_16(*(int16_t*)(b_tlv->payload));
+                curBalise.alt = read_be16(b_tlv->payload);
                 break;
               case B_CUR_HAU :
-                curBalise.haut = __bswap_16(*(int16_t*)(b_tlv->payload));
+                curBalise.haut = read_be16(b_tlv->payload);
                 break;
               case B_STA_LAT :
-                curBalise.latHome = (float)((signed)(__bswap_32(*(int32_t*)(b_tlv->payload)))) / 100000.0;
+                curBalise.latHome = (float)((signed)(read_be32(b_tlv->payload))) / 100000.0;
                 break;
               case B_STA_LON :
-                curBalise.lonHome = (float)((signed)(__bswap_32(*(int32_t*)(b_tlv->payload)))) / 100000.0;
+                curBalise.lonHome = (float)((signed)(read_be32(b_tlv->payload))) / 100000.0;
                 break;
               case B_CUR_VIT :
                 curBalise.vitesse = *(b_tlv->payload);
                 break;
               case B_CUR_DIR :
-                curBalise.route = __bswap_16(*(int16_t*)(b_tlv->payload));
+                curBalise.route = read_be16(b_tlv->payload);
                 break;
               case B_CODE_INFO :
                 curBalise.codeinfo = (double)(*(b_tlv->payload));;
@@ -324,13 +391,15 @@ static void wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type)
 
           //infos wifi
           curBalise.rssi = sniffer->rx_ctrl.rssi;
-          curBalise.cwb = sniffer->rx_ctrl.cwb;
+          curBalise.cwb  = sniffer->rx_ctrl.CWB;
           curBalise.rate = sniffer->rx_ctrl.rate;
 
           addBalise() ;  //  rajouter la balise dans la table
         } //if vendor ok
       }
-      index = index + tlv->length + 2;
+      // break;
+      if (tlv->length == 0) break;
+      index +=  tlv->length + 2;
     }
   }
 }
@@ -338,48 +407,49 @@ static void wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type)
 /* Initialize wifi with tcp/ip adapter */
 static void initialize_wifi_sniffer()
 {
-  wifi_promiscuous_filter_t wifi_promiscuous_filter =
-  {
-    .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT
-  };
-  //  initialize_nvs();
-  // tcpip_adapter_init() ;
-  // ESP_ERROR_CHECK(esp_event_loop_create_default());
-  // wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  //  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-  // ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-  // ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_NULL));
-  //  ESP_ERROR_CHECK( esp_wifi_start() );
-
-  esp_wifi_set_promiscuous_filter(&wifi_promiscuous_filter);
-  esp_wifi_set_promiscuous_rx_cb(wifi_sniffer_cb);
-  ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
-  esp_wifi_set_channel(wifi_channel, WIFI_SECOND_CHAN_NONE);
-  ESP_LOGI(TAG, "start WiFi promiscuous ok");
+  wifi_set_opmode(STATION_MODE);
+  // wifi_promiscuous_enable(0);
+  wifi_set_channel(6);
+  wifi_set_promiscuous_rx_cb(wifi_sniffer_cb);
+  wifi_promiscuous_enable(1);
 }
 
-
-hw_timer_t *timer = NULL;
+os_timer_t myTimer;
 bool timerOccurs = false;
 
-void IRAM_ATTR onTimerRx() {
+void onTimerRx(void *pArg) {
   timerOccurs = true;
 }
+
+void handleNothing()
+{
+
+}
+
 void handleRecepteur()
 {
-  Serial.println(F("Lancement recepteur"));
-  // couper la liaison avec le GPS (IT ...), ferme filesystem ...
-  serialGPS.end();
+  handleRecepteurRefresh();
+}
+
+static int scanIteration = 0;
+
+void handleScan()
+{
+    // couper la liaison avec le GPS (IT ...), ferme filesystem ...
+  scanIteration = 0;
+
+
+  // TODO: reenable it
+  //serialGPS.end();
   LittleFS.end();
   modeRecepteur = true;
+  Serial.println(F("Init WiFi..."));
   initialize_wifi_sniffer();
-  timer = timerBegin(0, 80, true);
-  if (timer == NULL) Serial.println("Erreur timerBegin !!");
-  timerAttachInterrupt(timer, &onTimerRx, true);
-  timerAlarmWrite(timer, 1000000, true);
-  timerAlarmEnable(timer);
-  Serial.println(F("En attente de trames..."));
-  handleRecepteurRefresh();
+  Serial.println(F("Init WiFi OK"));
+
+  os_timer_disarm(&myTimer);
+  os_timer_setfn(&myTimer, (os_timer_func_t *)onTimerRx, NULL);
+  os_timer_arm(&myTimer, 500, true); // timer périodique
 }
 
 void loopRecepteur()  // appellé à chaque boucle depuis la boucle void loop()
@@ -387,10 +457,16 @@ void loopRecepteur()  // appellé à chaque boucle depuis la boucle void loop()
   if (timerOccurs)
     // incrementer l'age des informations reçues des balises
   {
-   // Serial.println("Timer !!");
     for (int i = 0; i < sizeof (lesBalises) / sizeof( balise_t); i++)
       lesBalises[i].age++;
     timerOccurs = false;
+    scanIteration++;
+  }
+  if (scanIteration > 4){
+    Serial.println(F("Restoring web server..."));
+    modeRecepteur = false;
+    wifi_promiscuous_enable(0);
+    wifi_set_opmode(SOFTAP_MODE);
   }
 }
 #endif

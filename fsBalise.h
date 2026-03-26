@@ -68,7 +68,7 @@ struct pref { // preferences sauvées en EEPROM
   bool logVitesse = false;
   bool logAltitude = true;
   bool logHeure = true;
-  bool arretWifi = true;  // false: ne pas arreter le point d'accès Wifi en vol;  true: arreter le point d'accès
+  bool arretWifi = false;  // false: ne pas arreter le point d'accès Wifi en vol;  true: arreter le point d'accès
   bool basseConso = false;  // true: couper le wifi entre 2 trames.
   bool iBusActif = true ; // pour telémesure style FlySky. L'activation dépend de toute façon de l'option define fs_iBus dans fs_option.h
 };

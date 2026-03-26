@@ -21,13 +21,14 @@
 #ifndef FS_WEBSERVER_H
 #define FS_WEBSERVER_H
 
-#include <WebServer.h>
-class fs_WebServer : public WebServer
+//#include <WebServer.h>
+#include <ESP8266WebServer.h>
+class fs_WebServer : public ESP8266WebServer
 {
   public:
-    fs_WebServer(int port = 80): WebServer(port) { }
-    fs_WebServer(IPAddress addr, int port): WebServer(addr, port){ }
-    using WebServer:: send_P;
+    fs_WebServer(int port = 80): ESP8266WebServer(port) { }
+    fs_WebServer(IPAddress addr, int port): ESP8266WebServer(addr, port){ }
+    using ESP8266WebServer:: send_P;
     void send_P(int code, PGM_P content_type, PGM_P content) {
       size_t contentLength = 0;
       if (content != NULL) {
@@ -37,7 +38,7 @@ class fs_WebServer : public WebServer
       char type[64];
       memccpy_P((void*)type, (PGM_VOID_P)content_type, 0, sizeof(type));
       _prepareHeader(header, code, (const char* )type, contentLength);
-      _currentClientWrite(header.c_str(), header.length());
+      _currentClient.write(header.c_str(), header.length());
       if (contentLength) {  // if rajouté par FS ...........................+++++
         sendContent_P(content);
       }
