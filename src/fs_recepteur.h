@@ -5,7 +5,6 @@ void loopRecepteur();
 void handleRecepteurRefresh();
 void handleRecepteurDetail();
 void handleScan();
-static void initialize_wifi_sniffer();
 #if defined(ESP8266)
 void handleNothing();
 #endif

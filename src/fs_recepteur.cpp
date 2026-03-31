@@ -588,7 +588,7 @@ void loopRecepteur()  // appellé à chaque boucle depuis la boucle void loop()
     #endif
   }
   #if defined(ESP8266)
-  if (scanIteration > 4){
+  if (scanIteration > 10){
     Serial.println(F("Restoring web server..."));
     modeRecepteur = false;
     wifi_promiscuous_enable(0);
