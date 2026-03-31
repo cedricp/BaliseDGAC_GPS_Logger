@@ -14,7 +14,6 @@
 */
 #ifndef FS_PAGEPROGMEM_H
 #define FS_PAGEPROGMEM_H
-#include "fs_options.h"
 
 //  ATTENTION: il faut conditionner la compilation du code, sinon le linker
 //            va tout prendre, même si on veut une version mini sans OTA...

@@ -52,12 +52,9 @@
 #include <DNSServer.h>
 #include "droneID_FR.h"
 #include "fsBalise.h"
-#include "fs_options.h"
 #include "fs_GPS.h"
 #include "fs_main.h"
-//#ifdef fs_RECEPTEUR
 #include "fs_recepteur.h"
-//#endif
 #include "fs_pagePROGMEM.h"
 
 #include "fs_telemetrie.h"

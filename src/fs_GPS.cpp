@@ -13,7 +13,6 @@
 */
 #include "fsBalise.h"
 #include "fs_GPS.h"
-#include "fs_options.h"
 
 #if defined(ESP32)
 extern HardwareSerial serialGPS;

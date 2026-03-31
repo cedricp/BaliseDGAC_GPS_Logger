@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include "fs_options.h"
 #if defined(fs_iBus)
 #include "fs_telemetrie.h"
 #pragma message "compil fs_telemetrie.h !."

@@ -16,7 +16,6 @@
 */
 #include "fsBalise.h"
 #include "fs_GPS.h"
-#include "fs_options.h"
 #include "fs_main.h"
 //#ifdef fs_RECEPTEUR
 #include "fs_recepteur.h"

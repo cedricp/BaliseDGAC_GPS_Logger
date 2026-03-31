@@ -18,7 +18,6 @@
 
 // ATTENTION: utilise le timer 0  !!!!!!!!!!!!!!!!
 
-#include "fs_options.h"
 #ifdef fs_RECEPTEUR   // compilation conditionnelle de tout le code récepteur
 #if defined (ESP8266)
 #include <ESP8266WiFi.h>

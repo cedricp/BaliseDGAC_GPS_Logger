@@ -12,7 +12,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 #include "fsBalise.h"
-#include "fs_options.h"
 #include "fs_GSM.h"
 #include "AsyncSMS.h"
 #include <SoftwareSerial.h>
