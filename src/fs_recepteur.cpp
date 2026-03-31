@@ -309,7 +309,7 @@ static void IRAM_ATTR wifi_sniffer_cb(uint8 *recv_buf, uint16 len)
   static TLV_t *tlv, *b_tlv;
   static vendor_ie_data_t *gse_vendor;
   static frame_header_t *packet;
-  static char identifiant[31];
+  //static char identifiant[31];
   
   sniffer = (wifi_sniffer_t *)recv_buf;
   packet = (frame_header_t*) sniffer->payload;
@@ -342,7 +342,7 @@ static void IRAM_ATTR wifi_sniffer_cb(uint8 *recv_buf, uint16 len)
                 break;
               case B_IDENT_FR :
                 memcpy (curBalise.identifiant, b_tlv->payload, b_tlv->length);
-                identifiant[b_tlv->length + 1] = '\0';
+                curBalise.identifiant[b_tlv->length + 1] = '\0';
                 break;
               case B_IDENT_ANSI :
                 //memcpy (identifiant, b_tlv->payload, b_tlv->length);
@@ -402,7 +402,6 @@ static void IRAM_ATTR wifi_sniffer_cb(uint8 *recv_buf, uint16 len)
 static void initialize_wifi_sniffer()
 {
   wifi_set_opmode(STATION_MODE);
-  // wifi_promiscuous_enable(0);
   wifi_set_channel(6);
   wifi_set_promiscuous_rx_cb(wifi_sniffer_cb);
   wifi_promiscuous_enable(1);
@@ -436,6 +435,11 @@ void handleScan()
   os_timer_setfn(&myTimer, (os_timer_func_t *)onTimerRx, NULL);
   os_timer_arm(&myTimer, 500, true); // timer périodique
 }
+
+void handleRecepteur()
+{
+  handleRecepteurRefresh();
+}
 #else // ESP32
 static void wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type)
 {
@@ -447,7 +451,7 @@ static void wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type)
   static vendor_ie_data_t *gse_vendor;
   static frame_header_t *packet;
   static float f_value;
-  static char identifiant[31];
+  //static char identifiant[31];
 
   sniffer = (wifi_promiscuous_pkt_t *)recv_buf;
 
@@ -477,7 +481,7 @@ static void wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type)
                 break;
               case B_IDENT_FR :
                 memcpy (curBalise.identifiant, b_tlv->payload, b_tlv->length);
-                identifiant[b_tlv->length + 1] = '\0';
+                curBalise.identifiant[b_tlv->length + 1] = '\0';
                 break;
               case B_IDENT_ANSI :
                 //memcpy (identifiant, b_tlv->payload, b_tlv->length);
@@ -571,11 +575,6 @@ void handleRecepteur()
 }
 
 #endif
-
-void handleRecepteur()
-{
-  handleRecepteurRefresh();
-}
 
 void loopRecepteur()  // appellé à chaque boucle depuis la boucle void loop()
 {
