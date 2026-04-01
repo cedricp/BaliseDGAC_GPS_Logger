@@ -3,8 +3,7 @@
 
 #include <Arduino.h>
 #include <inttypes.h>
-//#include <Timers.h>
-#include "Timers.h" // FS ++++++++++++++++  better if the special Timers library https://github.com/nettigo/Timers is local
+#include "timers.h" // FS ++++++++++++++++  better if the special Timers library https://github.com/nettigo/Timers is local
 #define SMS_SEND_MSG_LEN 160
 #define SMS_SEND_QUEUE_LENGTH 4
 #define SMS_RETRY_COUNT 2

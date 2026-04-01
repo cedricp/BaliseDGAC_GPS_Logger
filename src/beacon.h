@@ -14,12 +14,7 @@
 */
 /*------------------------------------------------------------------------------
 */
-#ifdef ESP32
-#include "fs_WebServer.h"
-#else
-#include <ESP8266WebServer.h>
-#endif
-
+#include "beaconServer.h"
 #include <TinyGPS++.h>
 
 const char versionSoft[] = "4.2";
@@ -70,7 +65,7 @@ struct pref { // preferences sauvées en EEPROM
   bool logHeure = true;
   bool arretWifi = false;  // false: ne pas arreter le point d'accès Wifi en vol;  true: arreter le point d'accès
   bool basseConso = false;  // true: couper le wifi entre 2 trames.
-  bool iBusActif = true ; // pour telémesure style FlySky. L'activation dépend de toute façon de l'option define fs_iBus dans fs_option.h
+  bool iBusActif = true ; // pour telémesure style FlySky. L'activation dépend de toute façon de l'option define FEATURE_IBUS dans fs_option.h
 };
 // type pour structure servant à stocker en binaire une ligne (un point) du log de trace: 20 octets par point
 struct trackLigne_t {
@@ -129,13 +124,13 @@ void displayOptionsSysteme(String sms);
 void handleOptionsSysteme();
 void handleOTA_();
 void handleResetStatistics();
-void razStatistics();
-void nettoyageTraces();
-void razStatBloc(statBloc_t* bl);
-void calculerStat (boolean calculerTemps, statBloc_t * bl);
-int writeStatBloc(char buf[], int size, statBloc_t* bl);
+void resetStatistics();
+void cleanupTraces();
+void reinitStats(statBloc_t* bl);
+void computeStats (boolean calculerTemps, statBloc_t * bl);
+int writeStatBlock(char buf[], int size, statBloc_t* bl);
 #ifdef ESP32
-void  fs_initServerOnOTA(fs_WebServer &server);
+void  fs_initServerOnOTA(BeaconWebServer &server);
 #else
 void  fs_initServerOnOTA(ESP8266WebServer &server);
 #endif

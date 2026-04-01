@@ -18,7 +18,7 @@
 
 // ATTENTION: utilise le timer 0  !!!!!!!!!!!!!!!!
 
-#ifdef fs_RECEPTEUR   // compilation conditionnelle de tout le code récepteur
+#ifdef FEATURE_RECEIVER   // compilation conditionnelle de tout le code récepteur
 #if defined (ESP8266)
 #include <ESP8266WiFi.h>
 extern "C" {
@@ -29,15 +29,13 @@ extern "C" {
 #include "esp_wifi.h"
 #include <WiFi.h>
 #endif
-#include "fs_WebServer.h"
-extern fs_WebServer server;
+#include "beaconServer.h"
+extern BeaconWebServer server;
 extern HardwareSerial serialGPS;
 #include <LittleFS.h>
 
-
-
-#include "fs_recepteur.h"
-#include "fs_pagePROGMEM.h"
+#include "receiver.h"
+#include "progmem.h"
 
 #define OUI_VER 0x01355C6A
 
@@ -96,7 +94,7 @@ typedef struct {
 } wifi_sniffer_t; 
 #endif
 
-extern boolean modeRecepteur;  // false: mode balise avec emmision de trames; true: mode reception de trames beacon
+extern boolean snifferMode;  // false: mode balise avec emmision de trames; true: mode reception de trames beacon
 
 static const char* const WIFI_PHY_RATE[] =
 {
@@ -196,7 +194,7 @@ static inline int16_t read_be16(const uint8_t* p) {
 }
 #endif
 
-void handleRecepteurDetail()
+void handleRecepteurDetails()
 {
   modeDetail = true;
   numBaliseDetail = server.arg("detail").toInt();
@@ -221,6 +219,7 @@ void handleRecepteurDetail()
   server.sendContent(page);
   server.chunkedResponseFinalize();
 }
+
 void handleRecepteurRefresh()
 {
   modeDetail = false;
@@ -269,7 +268,7 @@ typedef struct
   uint8_t payload[];      /**<  */
 } __attribute((__packed__)) TLV_t;
 
-void addBalise() {
+void addBeacon() {
   for (unsigned int i = 0; i < sizeof (lesBalises) / sizeof( balise_t); i++)
   {
     if (strncmp(curBalise.identifiant, lesBalises[i].identifiant, 30) == 0) {
@@ -387,7 +386,7 @@ static void IRAM_ATTR wifi_sniffer_cb(uint8 *recv_buf, uint16 len)
           curBalise.cwb  = sniffer->rx_ctrl.CWB;
           curBalise.rate = sniffer->rx_ctrl.rate;
 
-          addBalise() ;  //  rajouter la balise dans la table
+          addBeacon() ;  //  rajouter la balise dans la table
         } //if vendor ok
       }
       // break;
@@ -425,7 +424,7 @@ void handleScan()
     // couper la liaison avec le GPS (IT ...), ferme filesystem ...
   scanIteration = 0;
 
-  modeRecepteur = true;
+  snifferMode = true;
   Serial.println(F("Init WiFi..."));
   initialize_wifi_sniffer();
   Serial.println(F("Init WiFi OK"));
@@ -435,7 +434,7 @@ void handleScan()
   os_timer_arm(&myTimer, 500, true); // timer périodique
 }
 
-void handleRecepteur()
+void handleReceiver()
 {
   handleRecepteurRefresh();
 }
@@ -526,7 +525,7 @@ static void wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type)
           curBalise.cwb = sniffer->rx_ctrl.cwb;
           curBalise.rate = sniffer->rx_ctrl.rate;
 
-          addBalise() ;  //  rajouter la balise dans la table
+          addBeacon() ;  //  rajouter la balise dans la table
         } //if vendor ok
       }
       index = index + tlv->length + 2;
@@ -556,13 +555,13 @@ void IRAM_ATTR onTimerRx() {
   timerOccurs = true;
 }
 
-void handleRecepteur()
+void handleReceiver()
 {
   Serial.println(F("Lancement recepteur"));
   // couper la liaison avec le GPS (IT ...), ferme filesystem ...
   serialGPS.end();
   LittleFS.end();
-  modeRecepteur = true;
+  snifferMode = true;
   initialize_wifi_sniffer();
   timer = timerBegin(0, 80, true);
   if (timer == NULL) Serial.println("Erreur timerBegin !!");
@@ -575,7 +574,7 @@ void handleRecepteur()
 
 #endif
 
-void loopRecepteur()  // appellé à chaque boucle depuis la boucle void loop()
+void receiverLoop()  // appellé à chaque boucle depuis la boucle void loop()
 {
   if (timerOccurs)
     // incrementer l'age des informations reçues des balises
@@ -590,7 +589,7 @@ void loopRecepteur()  // appellé à chaque boucle depuis la boucle void loop()
   #if defined(ESP8266)
   if (scanIteration > 10){
     Serial.println(F("Restoring web server..."));
-    modeRecepteur = false;
+    snifferMode = false;
     wifi_promiscuous_enable(0);
     wifi_set_opmode(SOFTAP_MODE);
   }

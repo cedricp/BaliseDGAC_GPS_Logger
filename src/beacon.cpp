@@ -14,21 +14,21 @@
 */
 /*------------------------------------------------------------------------------
 */
-#include "fsBalise.h"
-#include "fs_GPS.h"
-#include "fs_main.h"
-//#ifdef fs_RECEPTEUR
-#include "fs_recepteur.h"
+#include "beacon.h"
+#include "gps.h"
+#include "main.h"
+//#ifdef FEATURE_RECEIVER
+#include "receiver.h"
 //#endif
-#include "fs_pagePROGMEM.h"
-#include "AsyncSMS.h"
+#include "progmem.h"
+#include "async_sms.h"
 #include <LittleFS.h>
 #include <EEPROM.h>
-#include "droneID_FR.h"
-#include "fs_telemetrie.h"
+#include "drone_id_fr.h"
+#include "telemetry.h"
 #ifdef ESP32
 #include <Update.h>
-extern fs_WebServer server;
+extern BeaconWebServer server;
 #else
 extern ESP8266WebServer server;
 #endif
@@ -41,7 +41,7 @@ extern float VmaxSegment, AltMaxSegment;
 extern unsigned long TimeShutdown;
 extern boolean countdownRunning;
 extern droneIDFR drone_idfr;
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
 extern statBloc_t statNotFound, statCockpit;
 #endif
 extern TinyGPSPlus gps;
@@ -62,10 +62,10 @@ void handleCockpit() {
   //  reset du timeout pour arreter le wifi
   TimeShutdown = millis() + preferences.timeoutWifi * 1000;
   countdownRunning = true;
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
   statCockpit.T0 = millis();
   handleCockpitNotFound();
-  calculerStat(true, &statCockpit);
+  computeStats(true, &statCockpit);
 #else
   handleCockpitNotFound();
 #endif
@@ -80,10 +80,10 @@ void handleCockpitNotFound() {
 void handleNotFound() {
   // Serial.printf_P(PSTR("------------handleNotFound:%s  milli:%u\n"), server.uri().c_str(), millis());
   if (loadFromSPIFFS(server.uri())) return;  // permet de telecharger un fichier par appel direct
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
   statNotFound.T0 = millis();
   handleCockpitNotFound();  //  sinon: acces au portail général
-  calculerStat(true, &statNotFound);
+  computeStats(true, &statNotFound);
 #else
   handleCockpitNotFound();  //  sinon: acces au portail général
 #endif
@@ -325,7 +325,7 @@ void listSPIFFS(String message) {
 }
 
 // Garder uniquement les preferences.nbrMaxTraces dernieres traces
-void nettoyageTraces() {
+void cleanupTraces() {
   int nbrFiles = 0;
 #ifdef ESP32
   File dir = LittleFS.open("/");
@@ -582,11 +582,11 @@ void handleGestionSpiff() {
 // L'appel à checkFactoryReset est fait dès le début, alors que la structure contient encore les valeurs par
 //  defaut définies dans fs_balise.h.
 void checkFactoryReset() {
-#ifdef pinFactoryReset
-  pinMode(pinFactoryReset, INPUT_PULLUP);
-  if (digitalRead(pinFactoryReset) == HIGH) return;
+#ifdef PIN_FACTORY_RESET
+  pinMode(PIN_FACTORY_RESET, INPUT_PULLUP);
+  if (digitalRead(PIN_FACTORY_RESET) == HIGH) return;
   savePreferences();
-  // attendre un vrai rédémmarage. Pour eviter un court circuit si pinFactoryReset est aussi utilisée plus tard comme sortie
+  // attendre un vrai rédémmarage. Pour eviter un court circuit si PIN_FACTORY_RESET est aussi utilisée plus tard comme sortie
   // (cas de la pin 2 sur ESP01/8266 ....)
   while (true) {
     delay(1000);
@@ -754,7 +754,7 @@ void handleOptionsPreferences() {
   message += "; gel('SMSCommand').value = '" + String(preferences.SMSCommand) + "'";
   message += "; gel('myPhoneNumber').innerHTML = '" + String(smsHelper.myPhoneNumber) + "'";
 #endif
-#ifdef fs_iBus
+#ifdef FEATURE_IBUS
   message += "; gel('" + String((preferences.iBusActif ? "ouiIBUS" : "nonIBUS")) + "').checked = true";
 #endif
   //  message += "; gel('local_ip').value = '" + String(preferences.local_ip) + "'";
@@ -835,7 +835,7 @@ void fs_initServerOn() {
   server.on("/optionLogProcess", handleOptionLogProcess);
   server.on("/optionGPSProcess", handleOptionGPSProcess);
   server.on("/optionPointAccesProcess", handleOptionPointAccesProcess);
-#ifdef fs_iBus
+#ifdef FEATURE_IBUS
   server.on("/optionIBUS", handleOptionIBUS);
 #endif
 #ifdef repondeurGSM
@@ -844,22 +844,22 @@ void fs_initServerOn() {
   server.on("/droneIDProcess", handleDroneID);
   server.on("/resetUsine", handleResetUsine);
   server.on("/reset", handleReset);
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
   server.on("/stat", handleStat);
   server.on("/readStatistics", handleReadStatistics);
   server.on("/statReset", handleResetStatistics);
 #endif
-#ifdef fs_RECEPTEUR
-  server.on("/recepteur", handleRecepteur);
+#ifdef FEATURE_RECEIVER
+  server.on("/recepteur", handleReceiver);
   server.on("/recepteurRefresh", handleRecepteurRefresh);
-  server.on("/recepteurDetail", handleRecepteurDetail);
+  server.on("/recepteurDetail", handleRecepteurDetails);
 #if defined(ESP8266)
   server.on("/scan", handleScan);
   server.on("/recepteurRefresh", handleNothing);
   server.on("/recepteurDetail", handleNothing);
 #endif
 #endif
-#ifdef fs_OTA
+#ifdef FEATURE_OTA
   fs_initServerOnOTA(server);  // server.on spécicifiques à OTA
 #endif
 }
@@ -877,14 +877,14 @@ void handleOptionsSysteme() {
   displayOptionsSysteme("");
 }
 
-#ifdef fs_OTA
+#ifdef FEATURE_OTA
 void handleOTA_() {
   sendChunkDebut(true);  // debut HTML style, avec topMenu
   server.sendContent_P(pageOTA);
   server.chunkedResponseFinalize();
 }
 #ifdef ESP32
-void fs_initServerOnOTA(fs_WebServer &server) {
+void fs_initServerOnOTA(BeaconWebServer &server) {
 #else
 void fs_initServerOnOTA(ESP8266WebServer &server) {
 #endif
@@ -928,7 +928,7 @@ void fs_initServerOnOTA(ESP8266WebServer &server) {
 #endif
 // Calcul pour statistiques min/max etc ...
 // Tout est passer par référence !!  sauf T0 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-void calculerStat(boolean calculerTemps, statBloc_t *bl) {
+void computeStats(boolean calculerTemps, statBloc_t *bl) {
   // calculerTemps  true:  bl.T0 représente le temps début de la periode de mesure
   //       (utile pour stat de timming)
   // calculerTemps  false:  bl.T0 represente la mesure elle même, dont on va calculer min/max etc ..
@@ -949,7 +949,7 @@ void calculerStat(boolean calculerTemps, statBloc_t *bl) {
     bl->sousTotal = 0;
   }
 }
-void razStatBloc(statBloc_t *bl) {
+void reinitStats(statBloc_t *bl) {
   bl->min = 99999999;
   bl->max = 0;
   bl->total = 0;
@@ -958,13 +958,13 @@ void razStatBloc(statBloc_t *bl) {
   bl->T0 = 0;
   bl->moyenneLocale = 0.0;
 }
-int writeStatBloc(char buf[], int size, statBloc_t *bl) {
+int writeStatBlock(char buf[], int size, statBloc_t *bl) {
   int s = 0;
-  if (size <= 0) Serial.println(F("writeStatBloc. buffer trop petit. "));
+  if (size <= 0) Serial.println(F("writeStatBlock. buffer trop petit. "));
   else
     //génére une chaine du genre     statxy$min$max$moyenne1$moyenne2;
     //  Pour affichage dans la page HTML de statistiques
     s = snprintf_P(buf, size, PSTR(" % s$ % u$ % u$ % .1f$ % .1f; "), bl->nom, bl->min, bl->max, float(bl->total) / bl->count, bl->moyenneLocale);
-  if (s >= size) Serial.println(F("writeStatBloc. buffer trop petit. "));
+  if (s >= size) Serial.println(F("writeStatBlock. buffer trop petit. "));
   return s;
 }

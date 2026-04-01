@@ -86,7 +86,7 @@ Il est possible, par l'interface Web, de protéger cette fonction par un mot de 
 
 ## **Télémétrie FlySky / iBus**
 Testé avec un récepteur FS-iA6B et un émetteur avec le logiciel openTX.  
-L’option fs_iBus donnée dans le  fichier fs_options.h permet de transformer la balise en un ensemble de capteurs FlySky/iBus. Seront transmises les informations suivantes venant du GPS:  
+L’option FEATURE_IBUS donnée dans le  fichier fs_options.h permet de transformer la balise en un ensemble de capteurs FlySky/iBus. Seront transmises les informations suivantes venant du GPS:  
 -	Les coordonnées GPS 
 -	L’altitude en mètre
 -	Le cap (0..360 deg, 0=nord)
@@ -120,7 +120,7 @@ Le logiciel a été testé avec un GPS QUECTEL L80 et un Beitian BN-880 (dont la
 Les GPS qui utilisent les commandes style $PMTK251, $PMTK220, $PMTK314 (cas de Quectel, GlobalTop/Sierra Wireless, …) peuvent sûrement être utilisés.
 
 ## **Utilisation d'un LED**
-Si un LED est donné dans la configuration par */#define pinLed xx*  (voir fichier fs\_options.h)  son clignotement est rythmé par l'émission des trames d'identification. 
+Si un LED est donné dans la configuration par */#define PIN_LED xx*  (voir fichier fs\_options.h)  son clignotement est rythmé par l'émission des trames d'identification. 
 - En absence de fix GPS: clignotement lent, période de 6 secondes.
 - Après un fix GPS: flash très rapide lors de l'envoi d'une trame. (le flash est un peu plus long si la balise est en mode économie d'énergie/mise en sommeil)
 

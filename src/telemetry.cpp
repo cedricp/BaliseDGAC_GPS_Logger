@@ -1,6 +1,6 @@
 #include <Arduino.h>
-#if defined(fs_iBus)
-#include "fs_telemetrie.h"
+#if defined(FEATURE_IBUS)
+#include "telemetry.h"
 #pragma message "compil fs_telemetrie.h !."
 #include <IBusBM.h>
 #include <TinyGPS++.h>
@@ -67,4 +67,4 @@ void iBusStop() {
 void iBusLoop() {
   iBus.loop();
 }
-#endif  // #if defined(fs_iBus)
+#endif  // #if defined(FEATURE_IBUS)

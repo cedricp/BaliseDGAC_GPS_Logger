@@ -23,11 +23,11 @@
 
 #if defined(ESP8266)
 #include <ESP8266WebServer.h>
-class fs_WebServer : public ESP8266WebServer
+class BeaconWebServer : public ESP8266WebServer
 {
   public:
-    fs_WebServer(int port = 80): ESP8266WebServer(port) { }
-    fs_WebServer(IPAddress addr, int port): ESP8266WebServer(addr, port){ }
+    BeaconWebServer(int port = 80): ESP8266WebServer(port) { }
+    BeaconWebServer(IPAddress addr, int port): ESP8266WebServer(addr, port){ }
     using ESP8266WebServer:: send_P;
     void send_P(int code, PGM_P content_type, PGM_P content) {
       size_t contentLength = 0;
@@ -64,11 +64,11 @@ class fs_WebServer : public ESP8266WebServer
 };
 #else
 #include <WebServer.h>
-class fs_WebServer : public WebServer
+class BeaconWebServer : public WebServer
 {
   public:
-    fs_WebServer(int port = 80): WebServer(port) { }
-    fs_WebServer(IPAddress addr, int port): WebServer(addr, port){ }
+    BeaconWebServer(int port = 80): WebServer(port) { }
+    BeaconWebServer(IPAddress addr, int port): WebServer(addr, port){ }
     using WebServer:: send_P;
     void send_P(int code, PGM_P content_type, PGM_P content) {
       size_t contentLength = 0;

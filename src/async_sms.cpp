@@ -4,7 +4,7 @@
 // It is not fully compatible with the original library, mainly because the "baudrate" parameter no longer exist in the constructor.
 // baudrate of the serial link must be setup outside the library
 // It uses the library https://github.com/nettigo/Timers
-#include "AsyncSMS.h"
+#include "async_sms.h"
 
 //AsyncSMS::AsyncSMS(HardwareSerial *gsm, uint32_t baudRate, bool autoStateRefresh) {
 AsyncSMS::AsyncSMS(Stream *gsm, bool autoStateRefresh) {  // FS +++++++++++++

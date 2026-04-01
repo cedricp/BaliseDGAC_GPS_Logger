@@ -18,7 +18,7 @@
 //  ATTENTION: il faut conditionner la compilation du code, sinon le linker
 //            va tout prendre, même si on veut une version mini sans OTA...
 
-#ifdef fs_OTA
+#ifdef FEATURE_OTA
 const char pageOTA[] PROGMEM = R"=====(
 <form class="card" method='POST' id='upload_form' enctype='multipart/form-data'>
 <input type='file' name='update' >
@@ -192,7 +192,7 @@ const char topMenu[] PROGMEM = R"=====(
 <td class ='nobord'><button class='b1' onclick="location.replace('/spiff')">Traces</button></td>
 <td class ='nobord'><button class='b1' onclick="location.replace('/optionsSysteme')">Préférences</button></td>
 )====="
-#ifdef fs_RECEPTEUR
+#ifdef FEATURE_RECEIVER
 
 #if defined(ESP8266)
 R"=====(<td class ='nobord'><button class='b1' onclick="window.history.pushState({'nom':'toto'}, 'il faut reset', '/reset');location.assign('/recepteur')">Récepteur</button></td>)====="
@@ -203,7 +203,7 @@ R"=====(
 )====="
 #endif // ESP8266
 
-#endif // fs_RECEPTEUR
+#endif // FEATURE_RECEIVER
 R"=====(
 </tr>
 </table>
@@ -213,7 +213,7 @@ R"=====(
 const char menuSysteme[] PROGMEM = R"=====(
 <div class ='card'>
 )====="
-#ifdef fs_OTA
+#ifdef FEATURE_OTA
 R"=====(
 <button class='b1' onclick="document.location='/OTA_'">MaJ OTA</button>
 )====="
@@ -305,7 +305,7 @@ size ="32" minlength="1"  maxlength="32" value="">
 <br><span class="b3">(Faire reset / redémarrage pour prise en compte)</span>
 </form>
 )====="
-#ifdef fs_iBus
+#ifdef FEATURE_IBUS
 R"=====(
 <form action="/optionIBUS">
 <hr><b>Gestion de la télémétrie FlySky/iBus</b><input style="float: right;" type="submit" value="Envoyer">
@@ -415,7 +415,7 @@ const char cockpit_fin[] PROGMEM = R"=====(
 <div class="card">
 <button class='b1' onclick="document.location='/razVMaxHMAx'">RAZ des VMax/HMAx</button>
 )====="
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
 R"=====(
 <button class='b1' onclick="location.replace('/stat')">Stats</button>
 )====="
@@ -425,7 +425,7 @@ R"=====(
 )=====";
 
 
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
 const char statistics[] PROGMEM = R"=====(
 <script>
 setInterval(function(){

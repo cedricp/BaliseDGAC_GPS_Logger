@@ -11,9 +11,9 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-#include "fsBalise.h"
-#include "fs_GSM.h"
-#include "AsyncSMS.h"
+#include "beacon.h"
+#include "gsm.h"
+#include "async_sms.h"
 #include <SoftwareSerial.h>
 
 //#if defined(repondeurGSM) && !defined(ESP32)  //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

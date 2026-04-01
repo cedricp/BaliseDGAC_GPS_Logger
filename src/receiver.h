@@ -1,9 +1,9 @@
 #pragma once
 
-void handleRecepteur();
-void loopRecepteur();
+void handleReceiver();
+void receiverLoop();
 void handleRecepteurRefresh();
-void handleRecepteurDetail();
+void handleRecepteurDetails();
 void handleScan();
 #if defined(ESP8266)
 void handleNothing();

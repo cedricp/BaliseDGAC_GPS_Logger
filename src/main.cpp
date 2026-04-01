@@ -37,7 +37,7 @@
 //#pragma message "Compilation pour ESP32 !"
 #endif
 #include <WiFi.h>
-#include "fs_WebServer.h"
+#include "beaconServer.h"
 #elif defined(ESP8266)
 #pragma message "Compilation pour ESP8266 !"
 #include <ESP8266WebServer.h>
@@ -50,18 +50,18 @@
 #include <TinyGPS++.h>
 #include <EEPROM.h>
 #include <DNSServer.h>
-#include "droneID_FR.h"
-#include "fsBalise.h"
-#include "fs_GPS.h"
-#include "fs_main.h"
-#include "fs_recepteur.h"
-#include "fs_pagePROGMEM.h"
+#include "drone_id_fr.h"
+#include "beacon.h"
+#include "gps.h"
+#include "main.h"
+#include "receiver.h"
+#include "progmem.h"
 
-#include "fs_telemetrie.h"
+#include "telemetry.h"
 
 #ifdef repondeurGSM
 #pragma message "Code GSM!"
-#include "fs_GSM.h"
+#include "gsm.h"
 #endif
 #if defined(ESP8266)
 #include <SoftwareSerial.h>
@@ -161,17 +161,13 @@ static_assert((sizeof(drone_id) / sizeof(*drone_id)) <= 31, "Drone ID should be 
 /* Put IP Address details-> smartphone */
 const byte DNS_PORT = 53;
 DNSServer dnsServer;
-#ifdef ESP32
-//WebServer server(80);
-fs_WebServer server(80);
-#else
-ESP8266WebServer server(80);
-#endif
+BeaconWebServer server(80);
+
 IPAddress local_ip;  // +++++ FS https://github.com/espressif/arduino-esp32/issues/1037
 IPAddress gateway;
 IPAddress subnet;
 
-boolean modeRecepteur = false;  // false: mode balise avec emmision de trames; true: mode reception de trames beacon
+boolean snifferMode = false;  // false: mode balise avec emmision de trames; true: mode reception de trames beacon
 boolean traceFileOpened = false;
 boolean fileSystemFull = false;
 boolean immobile = false;
@@ -192,7 +188,7 @@ float VmaxSegment = 0.0, AltMaxSegment = 0.0;  // vitesse (kmh)/alt max vue entr
 
 float latLastLog, lngLastLog;  // FS ++++++ pour calcul déplacement depuis le dernier log
 //===========
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
 // pour statistiques
 unsigned long T0Beacon;
 statBloc_t statBeacon = { "Période Beacon" }, statSendPkt = { "Durée Sendpkt" }, statServer = { "Durée Server handle" },
@@ -220,25 +216,25 @@ SoftwareSerial serialGPS;                                        // pour ESP8266
 #endif
 TinyGPSPlus gps;
 
-#ifdef fs_STAT
-void razStatistics() {
-  razStatBloc(&statBeacon);
-  razStatBloc(&statSendPkt);
-  razStatBloc(&statServer);
-  razStatBloc(&statLog);
-  razStatBloc(&statSegment);
-  razStatBloc(&statLoop);
-  razStatBloc(&statReveiller);
-  razStatBloc(&statEndormir);
-  razStatBloc(&statNotFound);
-  razStatBloc(&statCockpit);
+#ifdef FEATURE_STATISTICS
+void resetStatistics() {
+  reinitStats(&statBeacon);
+  reinitStats(&statSendPkt);
+  reinitStats(&statServer);
+  reinitStats(&statLog);
+  reinitStats(&statSegment);
+  reinitStats(&statLoop);
+  reinitStats(&statReveiller);
+  reinitStats(&statEndormir);
+  reinitStats(&statNotFound);
+  reinitStats(&statCockpit);
   nbrLogError = 0;
   T1Log = 0;
   n0Passed = gps.passedChecksum();
   n0Failed = gps.failedChecksum();
 }
 void handleResetStatistics() {
-  razStatistics();  // raz des compteurs & Co
+  resetStatistics();  // raz des compteurs & Co
   handleStat();     // renvoyer le html
 }
 
@@ -256,14 +252,14 @@ void handleReadStatistics() {
                     100 * float(gpsFailed - n0Failed) / float(gpsFailed - n0Failed + gpsPass - n0Passed));
   deb += snprintf_P(&buf[deb], sizeof(buf) - deb, PSTR("Nbr entrées trace: %u  ,Nbr Beacon: %u;"),
                     countLog, TRBcounter);
-  deb += writeStatBloc(&buf[deb], sizeof(buf) - deb, &statLog);
-  deb += writeStatBloc(&buf[deb], sizeof(buf) - deb, &statSegment);
-  deb += writeStatBloc(&buf[deb], sizeof(buf) - deb, &statBeacon);
-  deb += writeStatBloc(&buf[deb], sizeof(buf) - deb, &statLoop);
-  deb += writeStatBloc(&buf[deb], sizeof(buf) - deb, &statServer);
-  // deb += writeStatBloc(&buf[deb], sizeof(buf) - deb, &statSendPkt);
-  deb += writeStatBloc(&buf[deb], sizeof(buf) - deb, &statNotFound);
-  //  deb += writeStatBloc(&buf[deb], sizeof(buf) - deb, &statCockpit);
+  deb += writeStatBlock(&buf[deb], sizeof(buf) - deb, &statLog);
+  deb += writeStatBlock(&buf[deb], sizeof(buf) - deb, &statSegment);
+  deb += writeStatBlock(&buf[deb], sizeof(buf) - deb, &statBeacon);
+  deb += writeStatBlock(&buf[deb], sizeof(buf) - deb, &statLoop);
+  deb += writeStatBlock(&buf[deb], sizeof(buf) - deb, &statServer);
+  // deb += writeStatBlock(&buf[deb], sizeof(buf) - deb, &statSendPkt);
+  deb += writeStatBlock(&buf[deb], sizeof(buf) - deb, &statNotFound);
+  //  deb += writeStatBlock(&buf[deb], sizeof(buf) - deb, &statCockpit);
 
   // effacer le dernier ";".
   deb--;
@@ -342,12 +338,12 @@ void beginServer() {
 #else
   Serial.println(LittleFS.begin() ? F("Ready") : F("Failed!"));  // pour ESP8266 format if fail par defaut
 #endif
-  nettoyageTraces();  // ne garder qu'un nombre limité de traces
+  cleanupTraces();  // ne garder qu'un nombre limité de traces
 }
 
 
 uint32_t sleep_time_in_ms = 10000;
-void Reveiller_Balise(void) {
+void wakeupBeacon(void) {
   if (shutdown && preferences.basseConso) {
 #ifndef ESP32
     WiFi.forceSleepWake();  // ESP8266
@@ -362,7 +358,7 @@ void Reveiller_Balise(void) {
   return;
 }
 
-void Endormir_Balise() {
+void shutdownBeacon() {
   if (shutdown && preferences.basseConso) {
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
@@ -374,7 +370,7 @@ void Endormir_Balise() {
   return;
 }
 
-void dumpTrame(uint8_t *beaconPacket, uint16_t to_send) {
+void dumpFrame(uint8_t *beaconPacket, uint16_t to_send) {
   for (int i = 0; i <= to_send; i++) {
     Serial.printf("%1i ", (i / 100));
   }
@@ -398,7 +394,7 @@ void dumpTrame(uint8_t *beaconPacket, uint16_t to_send) {
   Serial.println();
 }
 
-static void EnvoiTrame(double lat_actu, double lon_actu, int16_t alt_actu, int16_t dir_actu, double vit_actu) {
+static void sendFrame(double lat_actu, double lon_actu, int16_t alt_actu, int16_t dir_actu, double vit_actu) {
   //on définit le code info dans la trame:
   drone_idfr.set_codeinfo(codeinfo);
   //on envoie les données à la biblio pour formattage:
@@ -417,12 +413,12 @@ static void EnvoiTrame(double lat_actu, double lon_actu, int16_t alt_actu, int16
 
   // on envoie une trame dès qu'il est temps d'en envoyer une
   if (drone_idfr.time_to_send()) {
-#ifdef pinLed
+#ifdef PIN_LED
     // Tant que le fix n'est pas fait, flash du led avec la periode des trame.
     // Quand le fix est fait, un flash rapide pour chaque trame.
     // Le flash est un peu plus long:brillant en mode économie d'énergie car il y a un certain delay pour endormir/reveiller le wifi
-    if (codeinfo == 9) digitalWrite(abs(pinLed), pinLed > 0 ? HIGH : LOW);
-    else digitalWrite(abs(pinLed), TRBcounter % 2);
+    if (codeinfo == 9) digitalWrite(abs(PIN_LED), PIN_LED > 0 ? HIGH : LOW);
+    else digitalWrite(abs(PIN_LED), TRBcounter % 2);
 #endif
     //On commence par renseigner le ssid du wifi dans la trame
     // write new SSID into beacon frame
@@ -435,20 +431,20 @@ static void EnvoiTrame(double lat_actu, double lon_actu, int16_t alt_actu, int16
     //On génère la trame wifi avec l'identification
     const uint8_t to_send = drone_idfr.generate_beacon_frame(beaconPacket, header_size);  // override the null termination
                                                                                           //allume wifi
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
     statReveiller.T0 = millis();
 #endif
-    Reveiller_Balise();
+    wakeupBeacon();
     //envoi trame
     unsigned long TT = millis();
-#ifdef fs_STAT
-    calculerStat(true, &statReveiller);
+#ifdef FEATURE_STATISTICS
+    computeStats(true, &statReveiller);
     statSendPkt.T0 = millis();
 #endif
     //dump une seule fois d'une trame Beacon ...
     if (millis() < 9000) {
       Serial.println(F("Trame typique:"));
-      dumpTrame(beaconPacket, to_send);
+      dumpFrame(beaconPacket, to_send);
     }
 
 #ifdef ESP32
@@ -462,18 +458,18 @@ static void EnvoiTrame(double lat_actu, double lon_actu, int16_t alt_actu, int16
     wifi_send_pkt_freedom(beaconPacket, to_send, true);
 #endif
 
-#ifdef fs_STAT
-    calculerStat(true, &statSendPkt);
+#ifdef FEATURE_STATISTICS
+    computeStats(true, &statSendPkt);
     statEndormir.T0 = millis();
 #endif
     TRBcounter++;
     //éteindre wifi
-    Endormir_Balise();
+    shutdownBeacon();
     //On reset la condition d'envoi
     drone_idfr.set_last_send();
-#ifdef fs_STAT
-    calculerStat(true, &statEndormir);
-    calculerStat(true, &statBeacon);
+#ifdef FEATURE_STATISTICS
+    computeStats(true, &statEndormir);
+    computeStats(true, &statBeacon);
     statBeacon.T0 = millis();
     if (statSendPkt.count % 20 == 0) {
       Serial.printf_P(PSTR("%i\tReveiller :%i  %i  %f"), statReveiller.count, statReveiller.min, statReveiller.max, statReveiller.moyenneLocale);
@@ -482,16 +478,16 @@ static void EnvoiTrame(double lat_actu, double lon_actu, int16_t alt_actu, int16
       dbgHeap("fin");
     }
 #endif
-#ifdef pinLed
-    if (codeinfo == 9) digitalWrite(abs(pinLed), pinLed > 0 ? LOW : HIGH);
+#ifdef PIN_LED
+    if (codeinfo == 9) digitalWrite(abs(PIN_LED), PIN_LED > 0 ? LOW : HIGH);
 #endif
   }
 }
 
 void setup() {
 
-#ifdef pinLed
-  pinMode(abs(pinLed), OUTPUT);
+#ifdef PIN_LED
+  pinMode(abs(PIN_LED), OUTPUT);
 #endif
   Serial.begin(115200);
   Serial.print(F("\n\nBalise v"));
@@ -580,15 +576,15 @@ void setup() {
   GSMInit();
 #endif
 
-#if defined(fs_iBus)
+#if defined(FEATURE_IBUS)
 // init et stop evenntuel: on sera pret pour relancer de façon simple la télémétrie
   iBusInit(); 
   delay(200);
   if (!preferences.iBusActif) iBusStop();
 #endif
 
-#ifdef fs_STAT
-  razStatistics();
+#ifdef FEATURE_STATISTICS
+  resetStatistics();
 #endif
   Serial.println(F("Attente du fix & Co"));
 }
@@ -596,15 +592,15 @@ void setup() {
 
 
 void loop() {
-#ifdef fs_RECEPTEUR
-  if (modeRecepteur) {
+#ifdef FEATURE_RECEIVER
+  if (snifferMode) {
     server.handleClient();
     dnsServer.processNextRequest();
-    loopRecepteur();
+    receiverLoop();
     return;  // doit relancer loop
   }
 #endif
-#if defined(fs_iBus)
+#if defined(FEATURE_IBUS)
   if (preferences.iBusActif) {
 #ifndef iBusUseTimer
     iBusLoop();
@@ -629,18 +625,18 @@ void loop() {
     wifi_set_channel(6);
 #endif
 #ifdef STAT
-    razStatistics();
+    resetStatistics();
 #endif
     delay(100);
     shutdown = true;
   } else if (!shutdown) {
     // AP toujours actif
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
     statServer.T0 = millis();
 #endif
     server.handleClient();
-#ifdef fs_STAT
-    calculerStat(true, &statServer);
+#ifdef fs_SFEATURE_STATISTICSTAT
+    computeStats(true, &statServer);
 #endif
     dnsServer.processNextRequest();
   }
@@ -710,7 +706,7 @@ void loop() {
   // (sauf pour la vitesse qui a été mise à 0 au début, pour ne pas avoir de problème avec l'estimation de distance parcourue
   //  dans has_pass_distance()  )
   //
-  EnvoiTrame(lat_prev, lon_prev, alt_prev, dir_prev, vit_prev);  // envoie éventuel. Autres conditions testées dans la fonction
+  sendFrame(lat_prev, lon_prev, alt_prev, dir_prev, vit_prev);  // envoie éventuel. Autres conditions testées dans la fonction
   // on regarde si on doit enregistrer un point dans la trace
   //  IL faut au moins avoir eu un fix, des nouvelles données.
 
@@ -720,7 +716,7 @@ void loop() {
     // Si le fix existe :rejet de points abberrants (problème de communication avec le GPS ...). Surtout pour ESP8266
     if (drone_idfr.has_home_set() && (gps.location.lat() == 0 || gps.location.lng() == 0 || (preferences.logAfter > 0) && segmentf > 30 * preferences.logAfter)) {
       // point GPS aberrant: enregistrer l'erreur et l'ignorer ...
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
       nbrLogError++;
       //   Serial.printf_P(PSTR("%f  %f  %f  %f  %f\n"), segmentf, gps.location.lat(), gps.location.lng(), latLastLog, lngLastLog);
 #endif
@@ -749,7 +745,7 @@ void loop() {
               && (segmentf > 1.0 || preferences.logToujours))) {
         // Serial.print(F("Demande ecr trace. segmentf: ")); Serial.println(segmentf);
         T1Log = millis();
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
         statLog.T0 = millis();
 #endif
         if (!fs_ecrireTrace(gps)) {
@@ -760,10 +756,10 @@ void loop() {
           // ne mettre a jour les stats que si ecriture est faite. (sinon le disque est plein ..)
           fileSystemFull = false;
           messAlarm = "";
-#ifdef fs_STAT
-          calculerStat(true, &statLog);
+#ifdef FEATURE_STATISTICS
+          computeStats(true, &statLog);
           statSegment.T0 = segmentf;
-          calculerStat(false, &statSegment);
+          computeStats(false, &statSegment);
 #endif
           countLog++;
 
@@ -776,9 +772,9 @@ void loop() {
       }
     }
   }  // test si il faut ecrire un point
-#ifdef fs_STAT
+#ifdef FEATURE_STATISTICS
   // stats sur une tour complet de la boucle
-  calculerStat(true, &statLoop);
+  computeStats(true, &statLoop);
   statLoop.T0 = millis();
 #endif
 }
