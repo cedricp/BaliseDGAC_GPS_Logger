@@ -849,8 +849,8 @@ void fs_initServerOn() {
   server.on("/readStatistics", handleReadStatistics);
   server.on("/statReset", handleResetStatistics);
 #endif
-#ifdef FEATURE_RECEIVER
   server.on("/recepteur", handleReceiver);
+#ifdef FEATURE_RECEIVER
   server.on("/recepteurRefresh", handleRecepteurRefresh);
   server.on("/recepteurDetail", handleRecepteurDetails);
 #if defined(ESP8266)

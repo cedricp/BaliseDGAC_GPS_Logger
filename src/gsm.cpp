@@ -14,7 +14,9 @@
 #include "beacon.h"
 #include "gsm.h"
 #include "async_sms.h"
+#if defined(ESP8266)
 #include <SoftwareSerial.h>
+#endif
 
 //#if defined(repondeurGSM) && !defined(ESP32)  //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //#error "Option repondeurGSM valide uniquement avec une carte ESP32/ESP32C3"
