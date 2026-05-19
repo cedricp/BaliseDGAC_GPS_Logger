@@ -276,6 +276,25 @@ void handleStat() {
 }
 #endif  // partie spécifique pour statistiques
 
+extern 
+
+void handleReadADC() {
+  char buf[128];
+  int deb = 0;
+
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  int32_t cell = getBatterycentiVolts();
+  int32_t battCurrent = getBatteryCurrent();
+#else
+  int32_t cell = 0;
+  int32_t battCurrent = 0;
+#endif
+  deb += sprintf_P(&buf[deb], PSTR("1$ %i [%.4f] Vx100;"), cell, preferences.adcCalib[0]);
+  deb += sprintf_P(&buf[deb], PSTR("2$ %i Ax100 [%.3f] [%.3f];"), battCurrent, preferences.adcCalib[1], getBatteryCurrentSensormV() / 1000.);
+
+  server.send(200, "text/plain", buf);
+}
+
 // Generation reponse requette pour mise à jour de la page HTML cockpit
 // Format: suite de                N°_de_champ$valeur;
 void handleReadValues() {
@@ -544,6 +563,10 @@ void setup() {
   gateway.fromString(preferences.gateway);
   subnet.fromString(preferences.subnet);
 
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+  esp_wifi_set_ps(WIFI_PS_NONE); 
+  WiFi.setTxPower(WIFI_POWER_11dBm);   // stable TX power
+#endif
   //connection sur le terrain à un smartphone
   // start WiFi
   WiFi.mode(WIFI_AP);
@@ -581,12 +604,14 @@ void setup() {
   iBusInit(); 
   delay(200);
   if (!preferences.iBusActif) iBusStop();
+
+  batterySensInit();
 #endif
 
 #ifdef FEATURE_STATISTICS
   resetStatistics();
 #endif
-  Serial.println(F("Attente du fix & Co"));
+  Serial.println(F("Attente du fix GPS"));
 }
 
 
@@ -608,12 +633,22 @@ void loop() {
     iBusSetValue(gps);
   }
 #endif
+
+#if defined(FEATURE_IBUS)
+  // Must be init after iBus
+  batterySensProcess();
+#endif
+
 #if defined(repondeurGSM)
   GSMCheck();
 #endif
 
+
   //  Gestion du shutdown du Point Acces Wifi
-  if (!has_set_home || !countdownRunning) TimeShutdown = millis() + preferences.timeoutWifi * 1000;
+  if (!has_set_home || !countdownRunning){
+    TimeShutdown = millis() + preferences.timeoutWifi * 1000;
+  }
+
   if (preferences.arretWifi && !shutdown && (millis() > TimeShutdown && countdownRunning || vitesse > 2)) {  // 2m/S = 7.2km/h
     Serial.printf_P(PSTR("!!!!!!!  Shutdown. millis:%u  TimeShutdown:%u  vitesse:%i\n"), millis(), TimeShutdown, vitesse);
     //   Serial.printf_P(PSTR("WiFi.softAPdisconnect: %s\n"), WiFi.softAPdisconnect(true) ? F("OK") : F("Failed!"));

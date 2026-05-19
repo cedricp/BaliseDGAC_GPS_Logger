@@ -331,6 +331,46 @@ R"=====(
 </form>
 )====="
 #endif
+
+R"=====(
+
+<script>
+  setInterval(function() {
+    getData();
+  },1000);//1000mSeconds update rate 
+
+  function getData(){
+    var xhttp=new XMLHttpRequest();
+    xhttp.onreadystatechange=function() {
+    // chaine reçue numero$valeur;numero$valeur ...
+    if (this.readyState==4&&this.status==200){
+    this.responseText.split(';').forEach((item)=>{
+    var i=item.split('$')[0].trim();
+    var val=item.split('$')[1].replace(/"/g,'').trim();
+    document.getElementById("Value"+i).innerHTML=val;
+  });
+}
+};
+xhttp.open("GET","readADC",true);
+xhttp.send();
+}
+getData();
+</script>
+
+<form action="/optionBatterySensor">
+<hr><b>Calibration des ADC battery (Mettre 10V sur entree)</b>
+<p>
+Calibration ADC0
+<button type="button" class='b1' onclick="location.href='/calibrateadc0'">Start</button>
+<td><span id="Value1"></span></td>
+<br>
+Calibration ADC1
+<button type="button" class='b1' onclick="location.href='/calibrateadc1'">Start</button>
+<td><span id="Value2"></span></td>
+<br>
+</form>
+)====="
+
 R"=====(
 <form action="/droneIDProcess">
 <hr><b>Gestion de l'identificateur de la balise</b><input style="float: right;" type="submit" value="Envoyer">

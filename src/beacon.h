@@ -14,6 +14,8 @@
 */
 /*------------------------------------------------------------------------------
 */
+#pragma once
+
 #include "beaconServer.h"
 #include <TinyGPS++.h>
 
@@ -66,7 +68,9 @@ struct pref { // preferences sauvées en EEPROM
   bool arretWifi = false;  // false: ne pas arreter le point d'accès Wifi en vol;  true: arreter le point d'accès
   bool basseConso = false;  // true: couper le wifi entre 2 trames.
   bool iBusActif = true ; // pour telémesure style FlySky. L'activation dépend de toute façon de l'option define FEATURE_IBUS dans fs_option.h
+  float adcCalib[2] = {1, 1}; // pour calibrage des mesures de tension batterie (cellules et radio)
 };
+
 // type pour structure servant à stocker en binaire une ligne (un point) du log de trace: 20 octets par point
 struct trackLigne_t {
   float lat;  // double pas nécessaire ...

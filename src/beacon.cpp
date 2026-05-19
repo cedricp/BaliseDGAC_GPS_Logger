@@ -604,7 +604,6 @@ void readPreferences() {
 }
 
 void savePreferences() {
-
   dbgHeap("debut");
   EEPROM.put(0, preferences);
   EEPROM.commit();
@@ -825,6 +824,7 @@ void fs_initServerOn() {
   //
   server.on("/cockpit", handleCockpit);
   server.on("/readValues", handleReadValues);
+  server.on("/readADC", handleReadADC);
   server.on("/giveMeTime", handleGiveMeTime);
   server.on("/razVMaxHMAx", handleRazVMaxHMAx);
   server.on("/spiff", handleGestionSpiff);
@@ -858,6 +858,10 @@ void fs_initServerOn() {
   server.on("/recepteurRefresh", handleNothing);
   server.on("/recepteurDetail", handleNothing);
 #endif
+#endif
+#if defined(FEATURE_IBUS)
+  server.on("/calibrateadc0", batterySensCalibrate0);
+  server.on("/calibrateadc1", batterySensCalibrate1);
 #endif
 #ifdef FEATURE_OTA
   fs_initServerOnOTA(server);  // server.on spécicifiques à OTA

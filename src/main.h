@@ -17,3 +17,4 @@
 void handleReadStatistics();
 void handleStat();
 void handleReadValues();
+void handleReadADC();
